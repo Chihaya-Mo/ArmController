@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>竹蜻蜓横杆 · 正逆解示意</title>
+<style>
+  :root {
+    --bg: #0b1220;
+    --panel: #111a2e;
+    --line: #24324d;
+    --text: #dbe6f7;
+    --muted: #8fa3c4;
+    --arm: #e8eefb;
+    --bar: #22d3ee;
+    --cup: #f59e0b;
+    --accent: #7dd3fc;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: radial-gradient(1200px 700px at 20% 0%, #16233d 0%, var(--bg) 55%);
+    color: var(--text);
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    overflow: hidden;
+  }
+  .app {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    height: 100%;
+  }
+  .stage { position: relative; min-width: 0; }
+  canvas { display: block; width: 100%; height: 100%; }
+  .hint {
+    position: absolute; left: 20px; top: 16px;
+    color: var(--muted); font-size: 13px; line-height: 1.7;
+    pointer-events: none;
+  }
+  .hint b { color: var(--accent); font-weight: 600; }
+  .panel {
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+    border-left: 1px solid var(--line);
+    padding: 18px 18px 22px;
+    overflow-y: auto;
+  }
+  h1 { font-size: 17px; margin: 0 0 4px; letter-spacing: .3px; }
+  .sub { color: var(--muted); font-size: 12px; margin-bottom: 16px; line-height: 1.6; }
+  .group { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; }
+  .group:first-of-type { border-top: 0; margin-top: 0; padding-top: 0; }
+  .row { margin-bottom: 13px; }
+  .row .top { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
+  .row .top span:last-child { color: var(--accent); font-variant-numeric: tabular-nums; }
+  input[type="range"] {
+    width: 100%; accent-color: #38bdf8; cursor: pointer;
+  }
+  button {
+    width: 100%; border: 1px solid #2f4a72; background: #172642; color: var(--text);
+    border-radius: 8px; padding: 10px 12px; cursor: pointer; font-size: 14px;
+    transition: background .15s, border-color .15s;
+  }
+  button:hover { background: #1d3154; border-color: #3d6094; }
+  button.primary { background: #0e7490; border-color: #0891b2; }
+  button.primary:hover { background: #0891b2; }
+  .readout {
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-size: 12px; line-height: 1.75; color: #c7d7ef;
+    background: #0b1425; border: 1px solid var(--line); border-radius: 8px;
+    padding: 10px 12px; white-space: pre-wrap;
+  }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 10px; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
+  @media (max-width: 860px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+    .panel { border-left: 0; border-top: 1px solid var(--line); max-height: 46vh; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="stage">
+    <canvas id="view"></canvas>
+    <div class="hint">
+      <b>竹蜻蜓横杆</b>：绕横杆中点 C 自转，两端吸盘 P+ / P- 在圆周上运动。<br>
+      鼠标拖动滑块，或点“播放自转”看扫圆。
+    </div>
+  </div>
+
+  <aside class="panel">
+    <h1>四轴臂 + 横杆</h1>
+    <div class="sub">所有长度可调；逆解只依赖两个杯点、横杆半长 L 和杯高 h。</div>
+
+    <div class="group">
+      <div class="row">
+        <div class="top"><span>大臂俯仰 a</span><span id="aVal">20°</span></div>
+        <input id="a" type="range" min="0" max="170" step="1" value="20">
+      </div>
+      <div class="row">
+        <div class="top"><span>伸缩 d</span><span id="dVal">0.050 m</span></div>
+        <input id="d" type="range" min="0" max="0.266" step="0.001" value="0.05">
+      </div>
+      <div class="row">
+        <div class="top"><span>末端相对俯仰 p</span><span id="pVal">-10°</span></div>
+        <input id="p" type="range" min="-180" max="180" step="1" value="-10">
+      </div>
+      <div class="row">
+        <div class="top"><span>横杆自转 r</span><span id="rVal">15°</span></div>
+        <input id="r" type="range" min="-180" max="180" step="1" value="15">
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="row">
+        <div class="top"><span>横杆半长 L</span><span id="lVal">0.100 m</span></div>
+        <input id="l" type="range" min="0.04" max="0.20" step="0.001" value="0.10">
+      </div>
+      <div class="row">
+        <div class="top"><span>杯高 h</span><span id="hVal">0.000 m</span></div>
+        <input id="h" type="range" min="-0.05" max="0.05" step="0.001" value="0">
+      </div>
+      <button id="play" class="primary">播放自转</button>
+    </div>
+
+    <div class="group">
+      <div class="readout" id="readout"></div>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--arm)"></i>臂</span>
+        <span><i class="dot" style="background:var(--bar)"></i>横杆</span>
+        <span><i class="dot" style="background:var(--cup)"></i>吸盘</span>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---------------------------------------------------------------------
+  // 1. 参数与状态
+  // ---------------------------------------------------------------------
+  const spec = {
+    z0: 0.07,
+    L0: 0.543,
+    L2: 0.065,
+    L: 0.10,
+    h: 0.0,
+  };
+
+  const state = {
+    a: 20 * Math.PI / 180,
+    d: 0.05,
+    p: -10 * Math.PI / 180,
+    r: 15 * Math.PI / 180,
+  };
+
+  let playing = false;
+  let lastTime = 0;
+
+  // ---------------------------------------------------------------------
+  // 2. 小矩阵工具
+  // ---------------------------------------------------------------------
+  const rad = d => d * Math.PI / 180;
+  const deg = r => r * 180 / Math.PI;
+  const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const mul = (a, s) => [a[0] * s, a[1] * s, a[2] * s];
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+
+  function matMul(A, B) {
+    const C = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+    for (let i = 0; i < 3; i++)
+      for (let j = 0; j < 3; j++)
+        for (let k = 0; k < 3; k++)
+          C[i][j] += A[i][k] * B[k][j];
+    return C;
+  }
+
+  function matVec(A, v) {
+    return [
+      A[0][0] * v[0] + A[0][1] * v[1] + A[0][2] * v[2],
+      A[1][0] * v[0] + A[1][1] * v[1] + A[1][2] * v[2],
+      A[2][0] * v[0] + A[2][1] * v[1] + A[2][2] * v[2],
+    ];
+  }
+
+  function ry(t) {
+    const c = Math.cos(t), s = Math.sin(t);
+    return [[c, 0, s], [0, 1, 0], [-s, 0, c]];
+  }
+
+  function rx(t) {
+    const c = Math.cos(t), s = Math.sin(t);
+    return [[1, 0, 0], [0, c, -s], [0, s, c]];
+  }
+
+  // ---------------------------------------------------------------------
+  // 3. 正解：与 Python 版逐行对应
+  // ---------------------------------------------------------------------
+  function forward(s) {
+    const theta = s.a + s.p;
+    const L1 = spec.L0 + s.d;
+
+    const C = [
+      L1 * Math.cos(s.a) + spec.L2 * Math.cos(theta),
+      0,
+      spec.z0 + L1 * Math.sin(s.a) + spec.L2 * Math.sin(theta),
+    ];
+
+    const R = matMul(ry(-theta), rx(s.r));
+    const u = matVec(R, [0, 1, 0]);
+    const n = matVec(R, [0, 0, 1]);
+
+    const P1 = add(add(C, mul(u, spec.L)), mul(n, spec.h));
+    const P2 = add(add(C, mul(u, -spec.L)), mul(n, spec.h));
+
+    return { C, R, u, n, P1, P2, theta, L1 };
+  }
+
+  // ---------------------------------------------------------------------
+  // 4. 斜投影：把 (x,y,z) 画到 2D 画布
+  // ---------------------------------------------------------------------
+  const view = { scale: 700, ox: 120, oy: 620 };
+
+  function project(p) {
+    // X 向右，Z 向上，Y 向左下；简单的斜二测投影
+    return [
+      view.ox + view.scale * (p[0] - 0.55 * p[1]),
+      view.oy - view.scale * (p[2] - 0.32 * p[1]),
+    ];
+  }
+
+  // ---------------------------------------------------------------------
+  // 5. 画布
+  // ---------------------------------------------------------------------
+  const canvas = document.getElementById("view");
+  const ctx = canvas.getContext("2d");
+  let W = 0, H = 0;
+
+  function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    W = Math.max(320, rect.width);
+    H = Math.max(320, rect.height);
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    view.ox = W * 0.15;
+    view.oy = H * 0.87;
+    view.scale = Math.min(W / 1.12, H / 0.98);
+    draw();
+  }
+
+  function line(a, b, color, width, dash = []) {
+    const pa = project(a), pb = project(b);
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.setLineDash(dash);
+    ctx.beginPath();
+    ctx.moveTo(pa[0], pa[1]);
+    ctx.lineTo(pb[0], pb[1]);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function dot3(p, radius, fill, stroke = "rgba(255,255,255,.85)") {
+    const q = project(p);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(q[0], q[1], radius, 0, Math.PI * 2);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = stroke;
+    ctx.stroke();
+    ctx.restore();
+    return q;
+  }
+
+  function label(text, p, color = "#dbe6f7", dx = 10, dy = -10) {
+    const q = project(p);
+    ctx.save();
+    ctx.font = "600 13px ui-monospace, Consolas, monospace";
+    ctx.fillStyle = color;
+    ctx.fillText(text, q[0] + dx, q[1] + dy);
+    ctx.restore();
+  }
+
+  function drawGrid() {
+    ctx.save();
+    ctx.strokeStyle = "rgba(80,110,160,.18)";
+    ctx.lineWidth = 1;
+    for (let x = -0.1; x <= 0.85; x += 0.1) {
+      const a = project([x, -0.25, 0]);
+      const b = project([x, 0.25, 0]);
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    }
+    for (let y = -0.25; y <= 0.25; y += 0.1) {
+      const a = project([-0.1, y, 0]);
+      const b = project([0.85, y, 0]);
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawAxes() {
+    const O = [0, 0, 0];
+    line(O, [0.12, 0, 0], "#ef4444", 2);
+    line(O, [0, 0.12, 0], "#22c55e", 2);
+    line(O, [0, 0, 0.12], "#3b82f6", 2);
+    label("X", [0.14, 0, 0], "#ef4444", 4, 4);
+    label("Y", [0, 0.14, 0], "#22c55e", 4, 4);
+    label("Z", [0, 0, 0.14], "#3b82f6", 4, 4);
+  }
+
+  function drawTrace(s) {
+    // P+ 随 r 扫出的圆
+    const oldR = s.r;
+    ctx.save();
+    ctx.strokeStyle = "rgba(34,211,238,.28)";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    for (let i = 0; i <= 120; i++) {
+      const r = i / 120 * Math.PI * 2;
+      const p = forward({ ...s, r }).P1;
+      const q = project(p);
+      if (i === 0) ctx.moveTo(q[0], q[1]);
+      else ctx.lineTo(q[0], q[1]);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawArm(s) {
+    const out = forward(s);
+    const S = [0, 0, spec.z0];
+    const Wp = [
+      (spec.L0 + s.d) * Math.cos(s.a),
+      0,
+      spec.z0 + (spec.L0 + s.d) * Math.sin(s.a),
+    ];
+
+    drawGrid();
+    drawAxes();
+    drawTrace(s);
+
+    // 基座
+    line([0, 0, 0], S, "#64748b", 10);
+    // 大臂、工具段
+    line(S, Wp, "#e8eefb", 9);
+    line(Wp, out.C, "#e8eefb", 7);
+
+    // 关节
+    dot3(S, 6, "#94a3b8");
+    dot3(Wp, 5, "#94a3b8");
+    dot3(out.C, 5, "#7dd3fc");
+
+    // 横杆
+    line(out.P1, out.P2, "#22d3ee", 9);
+    line(out.C, out.P1, "rgba(34,211,238,.45)", 2, [4, 4]);
+    line(out.C, out.P2, "rgba(34,211,238,.45)", 2, [4, 4]);
+
+    // 吸盘
+    dot3(out.P1, 9, "#f59e0b");
+    dot3(out.P2, 9, "#f59e0b");
+
+    // 到地面的虚线，增强立体感
+    line(out.P1, [out.P1[0], out.P1[1], 0], "rgba(245,158,11,.25)", 1, [3, 5]);
+    line(out.P2, [out.P2[0], out.P2[1], 0], "rgba(245,158,11,.25)", 1, [3, 5]);
+
+    label("C", out.C, "#7dd3fc", 10, -12);
+    label("P+", out.P1, "#f59e0b", 12, -10);
+    label("P-", out.P2, "#f59e0b", 12, -10);
+    label("肩", S, "#94a3b8", -28, 18);
+  }
+
+  function fmt(p) {
+    return `(${p[0].toFixed(4)}, ${p[1].toFixed(4)}, ${p[2].toFixed(4)})`;
+  }
+
+  function drawReadout(s) {
+    const o = forward(s);
+    const text =
+      `θ = a+p = ${deg(o.theta).toFixed(2)}°\n` +
+      `C  = ${fmt(o.C)} m\n` +
+      `P+ = ${fmt(o.P1)} m\n` +
+      `P- = ${fmt(o.P2)} m\n` +
+      `u  = ${fmt(o.u)}\n` +
+      `n  = ${fmt(o.n)}\n` +
+      `|P+-P-| = ${(2 * spec.L).toFixed(4)} m`;
+    document.getElementById("readout").textContent = text;
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    drawArm(state);
+    drawReadout(state);
+  }
+
+  // ---------------------------------------------------------------------
+  // 6. 控件
+  // ---------------------------------------------------------------------
+  const ui = {
+    a: document.getElementById("a"),
+    d: document.getElementById("d"),
+    p: document.getElementById("p"),
+    r: document.getElementById("r"),
+    l: document.getElementById("l"),
+    h: document.getElementById("h"),
+  };
+
+  function syncLabels() {
+    document.getElementById("aVal").textContent = `${deg(state.a).toFixed(0)}°`;
+    document.getElementById("dVal").textContent = `${state.d.toFixed(3)} m`;
+    document.getElementById("pVal").textContent = `${deg(state.p).toFixed(0)}°`;
+    document.getElementById("rVal").textContent = `${deg(state.r).toFixed(0)}°`;
+    document.getElementById("lVal").textContent = `${spec.L.toFixed(3)} m`;
+    document.getElementById("hVal").textContent = `${spec.h.toFixed(3)} m`;
+  }
+
+  function readControls() {
+    state.a = rad(parseFloat(ui.a.value));
+    state.d = parseFloat(ui.d.value);
+    state.p = rad(parseFloat(ui.p.value));
+    state.r = rad(parseFloat(ui.r.value));
+    spec.L = parseFloat(ui.l.value);
+    spec.h = parseFloat(ui.h.value);
+    syncLabels();
+    draw();
+  }
+
+  Object.values(ui).forEach(el => el.addEventListener("input", readControls));
+
+  const playButton = document.getElementById("play");
+  playButton.addEventListener("click", () => {
+    playing = !playing;
+    playButton.textContent = playing ? "暂停自转" : "播放自转";
+    if (playing) {
+      lastTime = performance.now();
+      requestAnimationFrame(tick);
+    }
+  });
+
+  function tick(now) {
+    if (!playing) return;
+    const dt = Math.min(0.05, (now - lastTime) / 1000);
+    lastTime = now;
+
+    state.r += dt * Math.PI / 2; // 90°/s
+    if (state.r > Math.PI) state.r -= 2 * Math.PI;
+    if (state.r < -Math.PI) state.r += 2 * Math.PI;
+
+    ui.r.value = deg(state.r).toFixed(1);
+    syncLabels();
+    draw();
+    requestAnimationFrame(tick);
+  }
+
+  // ---------------------------------------------------------------------
+  // 7. 启动
+  // ---------------------------------------------------------------------
+  window.addEventListener("resize", resize);
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(canvas);
+  syncLabels();
+  resize();
+})();
+</script>
+</body>
+</html>
